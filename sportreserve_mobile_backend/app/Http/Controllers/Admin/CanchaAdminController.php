@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Cancha;
+use App\Services\AdminActionNotifier;
+use App\Services\CourtAvailabilityService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
+class CanchaAdminController extends Controller
+{
+    public function __construct(private CourtAvailabilityService $availabilityService)
+    {
+    }
+
+    // 🏠 Página principal del panel
+    public function index()
+    {
+        $date = now()->toDateString();
+        $canchas = Cancha::all()->map(fn (Cancha $cancha) => $this->appendAvailability($cancha, $date));
+
+        return view('admin.canchas.index', [
+            'canchas' => $canchas,
+            'availabilityDate' => $date,
+        ]);
+    }
+
+    // 🆕 Formulario para crear
+    public function create()
+    {
+        return view('admin.canchas.create');
+    }
+
+    // 💾 Guardar nueva cancha
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'nombre' => 'required|string|max:100|unique:canchas',
+            'tipo' => 'required|string|max:50',
+            'ubicacion' => 'required|string|max:150',
+            'latitud' => 'required|numeric',
+            'longitud' => 'required|numeric',
+            'precio_por_hora' => 'required|numeric|min:0',
+            'servicios' => 'nullable|string|max:255',
+            'descripcion' => 'nullable|string',
+            'disponibilidad' => 'boolean',
+            'imagen' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+        ]);
+
+        if ($request->hasFile('imagen')) {
+            $path = $request->file('imagen')->store('public/canchas');
+            $validated['imagen'] = Storage::url($path);
+        }
+
+        $validated['disponibilidad'] = $request->has('disponibilidad');
+
+        $cancha = Cancha::create($validated);
+
+        AdminActionNotifier::send(
+            $request->user(),
+            'Creación de cancha',
+            "Se registró la cancha {$cancha->nombre}.",
+            [
+                'Ubicación' => $cancha->ubicacion,
+                'Precio por hora' => number_format($cancha->precio_por_hora, 0, ',', '.'),
+            ]
+        );
+
+        return redirect()->route('admin.canchas.index')
+            ->with('success', 'Cancha creada correctamente.');
+    }
+
+    // ✏️ Editar
+    public function edit(Cancha $cancha)
+    {
+        $date = now()->toDateString();
+
+        return view('admin.canchas.edit', [
+            'cancha' => $this->appendAvailability($cancha, $date),
+            'availabilityDate' => $date,
+        ]);
+    }
+
+    // 🔄 Actualizar
+    public function update(Request $request, Cancha $cancha)
+    {
+        $validated = $request->validate([
+            'nombre' => 'required|string|max:100|unique:canchas,nombre,' . $cancha->id,
+            'tipo' => 'required|string|max:50',
+            'ubicacion' => 'required|string|max:150',
+            'latitud' => 'required|numeric',
+            'longitud' => 'required|numeric',
+            'precio_por_hora' => 'required|numeric|min:0',
+            'servicios' => 'nullable|string|max:255',
+            'descripcion' => 'nullable|string',
+            'disponibilidad' => 'boolean',
+            'imagen' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+        ]);
+
+        if ($request->hasFile('imagen')) {
+            if ($cancha->imagen) {
+                Storage::delete(str_replace('/storage/', 'public/', $cancha->imagen));
+            }
+            $path = $request->file('imagen')->store('public/canchas');
+            $validated['imagen'] = Storage::url($path);
+        }
+
+        $validated['disponibilidad'] = $request->has('disponibilidad');
+        $cancha->update($validated);
+        $cancha->refresh();
+
+        AdminActionNotifier::send(
+            $request->user(),
+            'Actualización de cancha',
+            "Se modificó la cancha {$cancha->nombre}.",
+            [
+                'Ubicación' => $cancha->ubicacion,
+                'Disponibilidad' => $cancha->disponibilidad ? 'Disponible' : 'No disponible',
+                'Precio por hora' => number_format($cancha->precio_por_hora, 0, ',', '.'),
+            ]
+        );
+
+        return redirect()->route('admin.canchas.index')
+            ->with('success', 'Cancha actualizada correctamente.');
+    }
+
+    // 🗑️ Eliminar
+    public function destroy(Request $request, Cancha $cancha)
+    {
+        $nombre = $cancha->nombre;
+        if ($cancha->imagen) {
+            Storage::delete(str_replace('/storage/', 'public/', $cancha->imagen));
+        }
+
+        $cancha->delete();
+
+        AdminActionNotifier::send(
+            $request->user(),
+            'Eliminación de cancha',
+            "Se eliminó la cancha {$nombre}.",
+            [
+                'Administrador' => $request->user()?->email ?? 'Desconocido',
+            ]
+        );
+
+        return redirect()->route('admin.canchas.index')
+            ->with('success', 'Cancha eliminada correctamente.');
+    }
+
+    private function appendAvailability(Cancha $cancha, string $date): Cancha
+    {
+        $availability = $this->availabilityService->availabilityFor($cancha->id, $date);
+
+        $cancha->setAttribute('availability', $availability);
+        $cancha->setAttribute('is_available_now', (bool) $availability['next_available']);
+
+        return $cancha;
+    }
+}

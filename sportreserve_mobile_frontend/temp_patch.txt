@@ -1,0 +1,15 @@
+*** Begin Patch
+*** Update File: lib/services/notification_service.dart
+@@
+   Future<void> initialize() async {
+     if (_initialized) return;
+
+     await _initializeTimezone();
+     await _configureFirebaseMessaging();
+     await _configureLocalNotifications();
++    await _applyPromotionPreference();
+
+     _initialized = true;
+   }
+*** End Patch
+
