@@ -7,6 +7,8 @@ use App\Models\AdminNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
+
 
 
 class AuthController extends Controller
@@ -64,48 +66,34 @@ class AuthController extends Controller
     // ✅ Inicio de sesión
     public function login(Request $request)
     {
+        ob_clean(); // Limpia cualquier salida previa para evitar BOM
+
         $credentials = $request->validate([
-            'email' => 'required|string|email',
-            'password' => 'required|string',
+            'email' => 'required|email',
+            'password' => 'required',
         ]);
 
-
-
-        $user = User::where('email', $credentials['email'])->first();
-        if (!$user || !Hash::check($credentials['password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['Las credenciales son incorrectas.'],
-            ]);
+        if (!Auth::attempt($credentials)) {
+            return response()->json([
+                'message' => 'Credenciales incorrectas.'
+            ], 401);
         }
-        // Actualizar último inicio de sesión
-        $user->last_login_at = now();
-        $user->save();
-        // Crear token Sanctum
+
+        $user = Auth::user();
+
         $token = $user->createToken('auth_token')->plainTextToken;
-        UserLoginSucceeded::dispatch($user, $request);
-        $rawPayload = [
+
+        $payload = [
             'message' => 'Inicio de sesión exitoso.',
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'photo_url' => $user->photo_url,
-                'role' => $user->role,
-                'must_change_password' => (bool) $user->must_change_password,
-                'last_login_at' => $user->last_login_at,
-                'created_at' => $user->created_at,
-                'updated_at' => $user->updated_at,
-            ],
+            'user' => $user,
         ];
 
-        \Log::info('DEBUG_LOGIN_RAW_PAYLOAD', [
-            'payload_json' => json_encode($rawPayload),
-        ]);
-
-        return response()->json($rawPayload, 200);
+        return response()->json($payload, 200, [], JSON_UNESCAPED_UNICODE);
     }
+
+
 
     // ✅ Perfil del usuario autenticado
     public function profile(Request $request)

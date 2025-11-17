@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Mail;
 use App\Models\User;
 use App\Services\AdminActionNotifier;
+
 use App\Http\Controllers\Admin\AuthAdminController;
 use App\Http\Controllers\Admin\CalificacionAdminController;
 use App\Http\Controllers\Admin\CanchaAdminController;
@@ -15,6 +16,11 @@ use App\Http\Controllers\Admin\SecurityController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\UsuarioAdminController;
 
+//
+// ======================================================================
+//   🔵 RUTA BASE DEL BACKEND
+// ======================================================================
+//
 Route::get('/', function () {
     return response()->json([
         'status' => 'ok',
@@ -23,76 +29,120 @@ Route::get('/', function () {
     ]);
 });
 
+//
+// ======================================================================
+//   🔵 MERCADO PAGO — CALLBACKS OFICIALES
+//   Estas rutas son indispensables para que el WebView de Flutter CIERRE.
+// ======================================================================
+//
+Route::get('/pago/success', function () {
+    return 'OK_SUCCESS';    // Flutter detecta éxito y cierra el WebView
+})->name('pago.success');
 
-// 🔐 Ruta principal de login administrativo
-Route::get('/admin/login', [AuthAdminController::class, 'showLoginForm'])->name('admin.login');
+Route::get('/pago/failure', function () {
+    return 'OK_FAILURE';    // Flutter muestra error y cierra
+})->name('pago.failure');
 
-// ⚙️ Alias para que Laravel encuentre la ruta 'login' por defecto cuando usa el middleware 'auth'
+Route::get('/pago/pending', function () {
+    return 'OK_PENDING';    // Flutter muestra pago pendiente
+})->name('pago.pending');
+
+//
+// ======================================================================
+//   🔐 LOGIN ADMINISTRATIVO
+// ======================================================================
+//
+Route::get('/admin/login', [AuthAdminController::class, 'showLoginForm'])
+    ->name('admin.login');
+
+// Alias usado por middlewares
 Route::get('/login', function () {
     return redirect()->route('admin.login');
 })->name('login');
 
-// 🔑 Acciones de autenticación del administrador
+// Acciones de autenticación
 Route::post('/admin/login', [AuthAdminController::class, 'login'])->name('admin.login.post');
 Route::post('/admin/logout', [AuthAdminController::class, 'logout'])->name('admin.logout');
 
-// 🧭 Rutas protegidas del panel administrativo
-Route::middleware(['auth', '2fa'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/dashboard', function () {
-        return view('admin.dashboard');
-    })->name('dashboard');
+//
+// ======================================================================
+//   🧭 RUTAS DEL PANEL ADMIN (PROTEGIDAS)
+// ======================================================================
+//
+Route::middleware(['auth', '2fa'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
 
-    // Gestión de canchas
-    Route::resource('canchas', CanchaAdminController::class);
+        Route::get('/dashboard', function () {
+            return view('admin.dashboard');
+        })->name('dashboard');
 
-    // Gestión de reservas
-    Route::get('/reservas', [ReservaAdminController::class, 'index'])->name('reservas.index');
-    Route::get('/reservas/{reserva}/edit', [ReservaAdminController::class, 'edit'])->name('reservas.edit');
-    Route::put('/reservas/{reserva}', [ReservaAdminController::class, 'update'])->name('reservas.update');
-    Route::put('/reservas/{reserva}/hold', [ReservaAdminController::class, 'hold'])->name('reservas.hold');
-    Route::put('/reservas/{reserva}/cancel', [ReservaAdminController::class, 'cancel'])->name('reservas.cancel');
+        // Gestión de canchas
+        Route::resource('canchas', CanchaAdminController::class);
 
-    // Calificaciones
-    Route::get('/calificaciones', [CalificacionAdminController::class, 'index'])->name('calificaciones');
+        // Gestión de reservas
+        Route::get('/reservas', [ReservaAdminController::class, 'index'])->name('reservas.index');
+        Route::get('/reservas/{reserva}/edit', [ReservaAdminController::class, 'edit'])->name('reservas.edit');
+        Route::put('/reservas/{reserva}', [ReservaAdminController::class, 'update'])->name('reservas.update');
+        Route::put('/reservas/{reserva}/hold', [ReservaAdminController::class, 'hold'])->name('reservas.hold');
+        Route::put('/reservas/{reserva}/cancel', [ReservaAdminController::class, 'cancel'])->name('reservas.cancel');
 
-    // Gestión de usuarios
-    Route::get('/usuarios', [UsuarioAdminController::class, 'index'])->name('usuarios');
-    Route::post('/usuarios', [UsuarioAdminController::class, 'store'])->name('usuarios.store');
-    Route::get('/usuarios/{usuario}', [UsuarioAdminController::class, 'show'])->name('usuarios.show');
-    Route::put('/usuarios/{usuario}', [UsuarioAdminController::class, 'update'])->name('usuarios.update');
-    Route::delete('/usuarios/{usuario}', [UsuarioAdminController::class, 'destroy'])->name('usuarios.destroy');
+        // Calificaciones
+        Route::get('/calificaciones', [CalificacionAdminController::class, 'index'])->name('calificaciones');
 
-    // Comprobantes
-    Route::get('/comprobantes', [ComprobanteAdminController::class, 'index'])->name('comprobantes.index');
-    Route::put('/comprobantes/{id}/validar', [ComprobanteAdminController::class, 'validar'])->name('comprobantes.validar');
+        // Gestión de usuarios
+        Route::get('/usuarios', [UsuarioAdminController::class, 'index'])->name('usuarios');
+        Route::post('/usuarios', [UsuarioAdminController::class, 'store'])->name('usuarios.store');
+        Route::get('/usuarios/{usuario}', [UsuarioAdminController::class, 'show'])->name('usuarios.show');
+        Route::put('/usuarios/{usuario}', [UsuarioAdminController::class, 'update'])->name('usuarios.update');
+        Route::delete('/usuarios/{usuario}', [UsuarioAdminController::class, 'destroy'])->name('usuarios.destroy');
 
-    // Seguridad
-    Route::get('/security', [SecurityController::class, 'index'])->name('security.index');
-    Route::post('/security/sessions/flush', [SecurityController::class, 'destroyOtherSessions'])->name('security.sessions.flush');
+        // Comprobantes
+        Route::get('/comprobantes', [ComprobanteAdminController::class, 'index'])->name('comprobantes.index');
+        Route::put('/comprobantes/{id}/validar', [ComprobanteAdminController::class, 'validar'])->name('comprobantes.validar');
 
-    // Doble factor
-    Route::get('/security/two-factor', [TwoFactorController::class, 'index'])->name('two-factor.index');
-    Route::post('/security/two-factor/enable', [TwoFactorController::class, 'enable'])->name('two-factor.enable');
-    Route::post('/security/two-factor/confirm', [TwoFactorController::class, 'confirm'])->name('two-factor.confirm');
-    Route::post('/security/two-factor/recovery', [TwoFactorController::class, 'regenerateRecoveryCodes'])->name('two-factor.recovery');
-    Route::delete('/security/two-factor', [TwoFactorController::class, 'disable'])->name('two-factor.disable');
+        // Seguridad
+        Route::get('/security', [SecurityController::class, 'index'])->name('security.index');
+        Route::post('/security/sessions/flush', [SecurityController::class, 'destroyOtherSessions'])->name('security.sessions.flush');
 
-    // Comunicaciones internas
-    Route::get('/comunicaciones', [ComunicacionesController::class, 'dashboard'])->name('comunicaciones.dashboard');
-    Route::get('/comunicaciones/notificaciones', [ComunicacionesController::class, 'notifications'])->name('comunicaciones.notifications');
-    Route::put('/comunicaciones/notificaciones/mark-all', [ComunicacionesController::class, 'markAllRead'])->name('comunicaciones.notifications.readall');
+        // 2FA
+        Route::get('/security/two-factor', [TwoFactorController::class, 'index'])->name('two-factor.index');
+        Route::post('/security/two-factor/enable', [TwoFactorController::class, 'enable'])->name('two-factor.enable');
+        Route::post('/security/two-factor/confirm', [TwoFactorController::class, 'confirm'])->name('two-factor.confirm');
+        Route::post('/security/two-factor/recovery', [TwoFactorController::class, 'regenerateRecoveryCodes'])->name('two-factor.recovery');
+        Route::delete('/security/two-factor', [TwoFactorController::class, 'disable'])->name('two-factor.disable');
 
-    Route::get('/mensajes/enviados', [MensajeController::class, 'enviados'])->name('mensajes.enviados');
-    Route::put('/mensajes/{mensaje}/leido', [MensajeController::class, 'marcarLeido'])->name('mensajes.leido');
-    Route::resource('mensajes', MensajeController::class)->names('mensajes')->except(['create', 'edit', 'update', 'show']);
-});
+        // Comunicaciones internas
+        Route::get('/comunicaciones', [ComunicacionesController::class, 'dashboard'])->name('comunicaciones.dashboard');
+        Route::get('/comunicaciones/notificaciones', [ComunicacionesController::class, 'notifications'])->name('comunicaciones.notifications');
+        Route::put('/comunicaciones/notificaciones/mark-all', [ComunicacionesController::class, 'markAllRead'])->name('comunicaciones.notifications.readall');
 
+        // Mensajes
+        Route::get('/mensajes/enviados', [MensajeController::class, 'enviados'])->name('mensajes.enviados');
+        Route::put('/mensajes/{mensaje}/leido', [MensajeController::class, 'marcarLeido'])->name('mensajes.leido');
+        Route::resource('mensajes', MensajeController::class)
+            ->names('mensajes')
+            ->except(['create', 'edit', 'update', 'show']);
+    });
+
+//
+// ======================================================================
+//   🔐 2FA RETOS
+// ======================================================================
+//
 Route::middleware('auth')->group(function () {
-    Route::get('/admin/two-factor/challenge', [TwoFactorController::class, 'challenge'])->name('admin.2fa.challenge');
-    Route::post('/admin/two-factor/verify', [TwoFactorController::class, 'verifyChallenge'])->name('admin.2fa.verify');
+    Route::get('/admin/two-factor/challenge', [TwoFactorController::class, 'challenge'])
+        ->name('admin.2fa.challenge');
+    Route::post('/admin/two-factor/verify', [TwoFactorController::class, 'verifyChallenge'])
+        ->name('admin.2fa.verify');
 });
 
-// 🧪 RUTA DE PRUEBA PARA ENVÍO DE CORREO (admin logueado)
+//
+// ======================================================================
+//   🧪 RUTAS DE PRUEBAS DE EMAIL
+// ======================================================================
+//
 Route::get('/test-mail', function () {
     try {
         $adminEmail = auth()->user()->email;
@@ -106,13 +156,11 @@ Route::get('/test-mail', function () {
     } catch (\Exception $e) {
         return '❌ Error: ' . $e->getMessage();
     }
-})->middleware('auth'); // 👈 solo funciona con admin logueado
+})->middleware('auth');
 
-
-// 🧾 RUTA DE PRUEBA PARA CORREO DE AUDITORÍA
 Route::get('/test-audit', function () {
     try {
-        $actor = auth()->user() ?? User::first(); // si no hay sesión, toma el primer usuario registrado
+        $actor = auth()->user() ?? User::first();
 
         AdminActionNotifier::send(
             $actor,
@@ -120,7 +168,7 @@ Route::get('/test-audit', function () {
             'Este es un mensaje de prueba para confirmar el envío al correo ADMIN_AUDIT_EMAIL.'
         );
 
-        return '✅ Correo de auditoría enviado correctamente. Revisa tu bandeja o spam.';
+        return '✅ Correo de auditoría enviado correctamente.';
     } catch (\Exception $e) {
         return '❌ Error en correo de auditoría: ' . $e->getMessage();
     }

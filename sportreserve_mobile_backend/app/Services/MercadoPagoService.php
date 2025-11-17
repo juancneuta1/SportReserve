@@ -22,7 +22,7 @@ class MercadoPagoService
     }
 
     /**
-     * Crea una preferencia de pago y devuelve datos relevantes.
+     * Crear preferencia de Mercado Pago.
      */
     public function createPreference(Reserva $reserva): ?array
     {
@@ -33,15 +33,31 @@ class MercadoPagoService
         }
 
         try {
-            $reserva->loadMissing('cancha', 'user');
+            // Cargar relaciones si no existen
+            $reserva->loadMissing(['cancha', 'user']);
+
             $amount = (float) $reserva->cantidad_horas * (float) $reserva->precio_por_cancha;
 
+            //
+            // ===============================================================
+            // URLs IMPORTANTES DEL .env (actualizadas con Cloudflare Tunnel)
+            // ===============================================================
+            //
             $successUrl = config('services.mercadopago.success_url');
             $failureUrl = config('services.mercadopago.failure_url');
             $pendingUrl = config('services.mercadopago.pending_url');
             $notificationUrl = config('services.mercadopago.notification_url');
 
+            if (!$successUrl || !$failureUrl || !$pendingUrl) {
+                Log::warning('MercadoPago: faltan URLs de callbacks en .env');
+            }
+
+            // ===============================================================
+            // Configurar preferencia
+            // ===============================================================
             $preference = new Preference();
+
+            // Item
             $preference->items = [
                 [
                     'title' => 'Reserva de cancha ' . ($reserva->cancha->nombre ?? 'SportReserve'),
@@ -51,6 +67,7 @@ class MercadoPagoService
                 ],
             ];
 
+            // Cliente
             $preference->payer = (object) [
                 'name' => $reserva->user->name ?? 'Invitado',
                 'email' => $reserva->user->email ?? 'invitado@sportreserve.com',
@@ -60,41 +77,60 @@ class MercadoPagoService
                 ],
             ];
 
+            // ===============================================================
+            // URLs de retorno (Flutter WebView las usa para cerrar correctamente)
+            // ===============================================================
             $preference->back_urls = [
                 'success' => $successUrl,
                 'failure' => $failureUrl,
                 'pending' => $pendingUrl,
             ];
-            $preference->notification_url = $notificationUrl;
-            $preference->binary_mode = true;
+
+            // Retorno automático al éxito
             $preference->auto_return = 'approved';
+
+            // Webhook
+            $preference->notification_url = $notificationUrl;
+
+            // Modo seguro de aprobación inmediata
+            $preference->binary_mode = true;
+
+            // Para relacionar el pago con la reserva
             $preference->external_reference = (string) $reserva->id;
 
+            // Guardar preferencia en MercadoPago
             $preference->save();
 
-
+            // ===============================================================
+            // Modo Sandbox / Producción
+            // ===============================================================
             $forceSandbox = filter_var(config('services.mercadopago.force_sandbox'), FILTER_VALIDATE_BOOLEAN);
+
             $checkoutUrl = $forceSandbox
                 ? ($preference->sandbox_init_point ?? $preference->init_point)
                 : ($preference->init_point ?? $preference->sandbox_init_point);
 
-            Log::info('MercadoPago: preferencia creada', [
+            // Log bonito para depurar
+            Log::info('MercadoPago: preferencia creada correctamente', [
                 'reserva_id' => $reserva->id,
                 'preference_id' => $preference->id,
-                'init_point' => $preference->init_point ?? null,
-                'sandbox_init_point' => $preference->sandbox_init_point ?? null,
+                'monto' => $amount,
+                'sandbox' => $forceSandbox,
+                'init_point' => $preference->init_point,
+                'sandbox_init_point' => $preference->sandbox_init_point,
+                'checkout_url' => $checkoutUrl,
             ]);
 
             return [
                 'payment_link' => $checkoutUrl,
                 'payment_reference' => $preference->id,
                 'preference' => $preference,
+                'back_urls' => $preference->back_urls,
             ];
         } catch (\Throwable $e) {
             Log::error('MercadoPago: error al crear preferencia', [
-                'message' => $e->getMessage(),
+                'exception' => $e->getMessage(),
             ]);
-
             return null;
         }
     }

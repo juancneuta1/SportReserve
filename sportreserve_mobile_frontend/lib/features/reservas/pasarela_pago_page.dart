@@ -35,7 +35,7 @@ class _PasarelaPagoPageState extends State<PasarelaPagoPage> {
   String? _errorMessage;
   late final Map<PasarelaPaymentStatus, Uri> _callbacks;
 
-  /// evita multiples cierres
+  /// evita múltiples cierres
   bool _handled = false;
 
   int _loadAttempts = 0;
@@ -45,21 +45,23 @@ class _PasarelaPagoPageState extends State<PasarelaPagoPage> {
       widget.forceSandboxBanner ||
       AppEnvironment.instance.mercadopagoForceSandbox;
 
+  // ---------------------------------------------------------------
+  // SANITIZADOR DE URL
+  // ---------------------------------------------------------------
   String? sanitizePaymentLink(String raw) {
-    var link = raw
-        .replaceAll('\n', ' ')
-        .replaceAll('\r', ' ')
-        .replaceAll('\t', ' ')
-        .replaceAll('redir rect', 'redirect')
-        .trim();
-    link = link.replaceAll(RegExp(r'\s+'), '');
+    if (raw.isEmpty) return null;
 
-    if (link.isEmpty) return null;
-    if (!link.startsWith('http://') && !link.startsWith('https://')) {
+    final clean = raw
+        .replaceAll('\n', '')
+        .replaceAll('\r', '')
+        .replaceAll('\t', '')
+        .trim();
+
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
       return null;
     }
 
-    final parsed = Uri.tryParse(link);
+    final parsed = Uri.tryParse(clean);
     if (parsed == null || parsed.host.isEmpty) return null;
 
     return parsed.toString();
@@ -73,13 +75,13 @@ class _PasarelaPagoPageState extends State<PasarelaPagoPage> {
   }
 
   // ---------------------------------------------------------------
-  // CONFIGURAR WEBVIEW
+  // CONFIGURAR WEBVIEW - VERSIÓN CORREGIDA COMPLETA
   // ---------------------------------------------------------------
   void _initializeWebView() {
     final sanitizedLink = sanitizePaymentLink(widget.paymentLink);
     if (sanitizedLink == null) {
       setState(() {
-        _errorMessage = 'El enlace de pago es invalido o incompleto.';
+        _errorMessage = 'El enlace de pago es inválido o incompleto.';
         _isLoading = false;
       });
       return;
@@ -105,35 +107,40 @@ class _PasarelaPagoPageState extends State<PasarelaPagoPage> {
           },
           onWebResourceError: (error) {
             if (!mounted) return;
+
             _loadAttempts++;
             final reachedLimit = _loadAttempts >= _maxAttempts;
+
             setState(() {
               _isLoading = false;
               _errorMessage = reachedLimit
-                  ? 'No pudimos cargar la pasarela despues de $_maxAttempts intentos.'
+                  ? 'No pudimos cargar la pasarela después de $_maxAttempts intentos.'
                   : 'No pudimos cargar la pasarela (${error.errorCode}).';
             });
+
             if (!reachedLimit) {
               _reload();
             }
           },
           onNavigationRequest: (request) {
+            // Detectar callbacks success/failure/pending
             final callback = _matchCallback(request.url);
             if (callback != null) {
               _handleCheckoutStatus(callback, request.url);
               return NavigationDecision.prevent;
             }
 
+            // Bloqueo de salidas no deseadas
             if (_isLeavingMercadoPago(request.url)) {
               return NavigationDecision.prevent;
             }
 
             return NavigationDecision.navigate;
           },
-          // Android extra callback: filtrado con _handled y matching
           onUrlChange: (change) {
             final url = change.url;
             if (url == null || _handled) return;
+
             final callback = _matchCallback(url);
             if (callback != null) {
               _handleCheckoutStatus(callback, url);
@@ -147,7 +154,48 @@ class _PasarelaPagoPageState extends State<PasarelaPagoPage> {
   }
 
   // ---------------------------------------------------------------
-  // DETECTAR CALLBACKS SUCCESS / FAILURE / PENDING
+  // MANEJO DE URLs de Mercado Pago
+  // ---------------------------------------------------------------
+  bool _isLeavingMercadoPago(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return true;
+
+    final host = uri.host.toLowerCase();
+
+    // dominios permitidos
+    const allowedHosts = [
+      'mercadopago.com',
+      'mercadopago.com.co',
+      'sandbox.mercadopago.com',
+      'sandbox.mercadopago.com.co',
+      'mercadopago.com.ar',
+      'mercadopago.com.br',
+      'mlstatic.com', // assets de checkout
+    ];
+
+    for (final allowed in allowedHosts) {
+      if (host.endsWith(allowed)) return false;
+    }
+
+    // dominios externos prohibidos
+    const blocked = [
+      'mercadolibre.com',
+      'google.com',
+      'facebook.com',
+      'apple.com',
+      'youtube.com',
+      'instagram.com',
+    ];
+
+    for (final b in blocked) {
+      if (host.contains(b)) return true;
+    }
+
+    return true;
+  }
+
+  // ---------------------------------------------------------------
+  // CALLBACKS (success, failure, pending)
   // ---------------------------------------------------------------
   Map<PasarelaPaymentStatus, Uri> _buildCallbackUris(
     Map<String, String>? rawBackUrls,
@@ -181,54 +229,19 @@ class _PasarelaPagoPageState extends State<PasarelaPagoPage> {
 
     for (final entry in _callbacks.entries) {
       final expected = entry.value;
-      final pathsMatch = _comparePaths(incoming.path, expected.path);
 
-      final basicMatch = incoming.scheme == expected.scheme &&
+      if (incoming.scheme == expected.scheme &&
           incoming.host == expected.host &&
-          pathsMatch;
+          incoming.path.startsWith(expected.path)) {
+        return entry.key;
+      }
 
-      final startsWithMatch =
-          incoming.toString().startsWith(expected.toString());
-
-      if (basicMatch ||
-          startsWithMatch ||
-          _matchesWithSegments(incoming, expected)) {
+      if (incoming.toString().startsWith(expected.toString())) {
         return entry.key;
       }
     }
 
     return null;
-  }
-
-  bool _comparePaths(String a, String b) {
-    final normA = a.endsWith('/') ? a.substring(0, a.length - 1) : a;
-    final normB = b.endsWith('/') ? b.substring(0, b.length - 1) : b;
-    if (normA == normB) return true;
-    // permite "/success/#/approved" o "/success?status=approved"
-    return normA.startsWith(normB) || normB.startsWith(normA);
-  }
-
-  bool _matchesWithSegments(Uri incoming, Uri expected) {
-    if (incoming.scheme != expected.scheme || incoming.host != expected.host) {
-      return false;
-    }
-    final incSegments =
-        incoming.pathSegments.where((s) => s.isNotEmpty).toList();
-    final expSegments =
-        expected.pathSegments.where((s) => s.isNotEmpty).toList();
-    if (incSegments.isEmpty || expSegments.isEmpty) return false;
-
-    if (incSegments.length < expSegments.length) return false;
-    for (var i = 0; i < expSegments.length; i++) {
-      if (incSegments[i] != expSegments[i]) return false;
-    }
-    return true;
-  }
-
-  bool _isLeavingMercadoPago(String url) {
-    return url.contains('mercadolibre.com') ||
-        url.contains('google.com') ||
-        url.contains('facebook.com');
   }
 
   // ---------------------------------------------------------------
@@ -323,16 +336,16 @@ class _PasarelaPagoPageState extends State<PasarelaPagoPage> {
             child: _errorMessage != null
                 ? _buildErrorState()
                 : controller == null
-                    ? const Center(
-                        child: Text('No fue posible inicializar el checkout.'))
-                    : Stack(
-                        children: [
-                          WebViewWidget(controller: controller),
-                          if (_isLoading)
-                            const Center(
-                                child: CircularProgressIndicator()),
-                        ],
-                      ),
+                ? const Center(
+                    child: Text('No fue posible inicializar el checkout.'),
+                  )
+                : Stack(
+                    children: [
+                      WebViewWidget(controller: controller),
+                      if (_isLoading)
+                        const Center(child: CircularProgressIndicator()),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -346,11 +359,14 @@ class _PasarelaPagoPageState extends State<PasarelaPagoPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.warning_amber_rounded,
-                size: 64, color: Colors.red),
+            const Icon(
+              Icons.warning_amber_rounded,
+              size: 64,
+              color: Colors.red,
+            ),
             const SizedBox(height: 16),
             Text(
-              _errorMessage ?? 'Ocurrio un error inesperado.',
+              _errorMessage ?? 'Ocurrió un error inesperado.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium,
             ),

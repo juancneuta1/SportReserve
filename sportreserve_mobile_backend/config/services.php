@@ -36,14 +36,16 @@ return [
     ],
 
     'mercadopago' => [
+        'key' => env('MERCADOPAGO_PUBLIC_KEY'),
         'access_token' => env('MERCADOPAGO_ACCESS_TOKEN'),
-        'public_key' => env('MERCADOPAGO_PUBLIC_KEY'),
+        'force_sandbox' => env('MERCADOPAGO_FORCE_SANDBOX', true),
+
         'notification_url' => env('MERCADOPAGO_NOTIFICATION_URL'),
         'success_url' => env('MERCADOPAGO_SUCCESS_URL'),
-        'pending_url' => env('MERCADOPAGO_PENDING_URL'),
         'failure_url' => env('MERCADOPAGO_FAILURE_URL'),
-        'force_sandbox' => env('MERCADOPAGO_FORCE_SANDBOX', true),
+        'pending_url' => env('MERCADOPAGO_PENDING_URL'),
     ],
+
 
     'audit_recipient' => env('ADMIN_AUDIT_EMAIL'),
 
