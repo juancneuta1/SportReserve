@@ -14,85 +14,15 @@ class ReservationService {
   void _log(String message) => debugPrint('ReservationService: $message');
 
   // ----------------------------------------------------------
-  // JSON SANITIZATION & DECODING
+  // JSON SANITIZATION SEGURO (NO ROMPE COMILLAS NI ESPACIOS)
   // ----------------------------------------------------------
   String sanitizeJson(String raw) {
-    if (raw.isEmpty) return '';
+    if (raw.isEmpty) return raw;
 
-    var sanitized = raw
+    return raw
         .replaceAll('\uFEFF', '')
         .replaceAll('\u200B', '')
-        .replaceAll(RegExp(r'[\u0000-\u0008\u000B\u000C\u000E-\u001F]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ') // colapsa espacios/saltos
-        .trim();
-
-    // corrige fragmentos cortados por MP: "redir rect" -> "redirect"
-    sanitized = sanitized.replaceAll('redir rect', 'redirect');
-
-    // repara comillas escapadas comunes
-    sanitized = sanitized.replaceAll(r'\"', '"');
-
-    // balancea llaves y corchetes
-    sanitized = _balanceBrackets(sanitized);
-
-    return sanitized;
-  }
-
-  String _balanceBrackets(String input) {
-    int openCurly = _countChar(input, '{');
-    int closeCurly = _countChar(input, '}');
-    int openSquare = _countChar(input, '[');
-    int closeSquare = _countChar(input, ']');
-
-    final buffer = StringBuffer(input);
-    if (openCurly > closeCurly) {
-      buffer.write(_repeatChar('}', openCurly - closeCurly));
-    }
-    if (openSquare > closeSquare) {
-      buffer.write(_repeatChar(']', openSquare - closeSquare));
-    }
-    return buffer.toString();
-  }
-
-  int _countChar(String source, String char) {
-    var count = 0;
-    for (var i = 0; i < source.length; i++) {
-      if (source[i] == char) count++;
-    }
-    return count;
-  }
-
-  String _repeatChar(String value, int times) {
-    if (times <= 0) return '';
-    final buffer = StringBuffer();
-    for (var i = 0; i < times; i++) {
-      buffer.write(value);
-    }
-    return buffer.toString();
-  }
-
-  Map<String, dynamic>? _decodeToMap(String source) {
-    try {
-      final dynamic decoded = jsonDecode(source);
-      if (decoded is Map<String, dynamic>) return decoded;
-      if (decoded is Map) {
-        return decoded.map((key, value) => MapEntry(key.toString(), value));
-      }
-      return null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Map<String, dynamic>? _safeDecodeBody(String rawBody) {
-    final sanitized = sanitizeJson(rawBody);
-    if (sanitized.isEmpty) return null;
-
-    final decoded = _decodeToMap(sanitized);
-    if (decoded != null) return decoded;
-
-    _log('No se pudo decodificar JSON (len=${sanitized.length})');
-    return null;
+        .replaceAll(RegExp(r'[\u0000-\u0008\u000B\u000C\u000E-\u001F]'), '');
   }
 
   // ----------------------------------------------------------
@@ -116,14 +46,15 @@ class ReservationService {
 
   String? _cleanPaymentLink(dynamic rawLink) {
     if (rawLink is! String) return null;
-    var link = rawLink
+
+    final link = rawLink
         .replaceAll('\n', ' ')
         .replaceAll('\r', ' ')
         .replaceAll('redir rect', 'redirect')
         .trim();
-    link = link.replaceAll(RegExp(r'\s+'), '');
+
     if (link.isEmpty) return null;
-    if (!(link.startsWith('http://') || link.startsWith('https://'))) {
+    if (!link.startsWith('http://') && !link.startsWith('https://')) {
       return null;
     }
     return link;
@@ -133,12 +64,10 @@ class ReservationService {
     final dynamic rawBackUrls = reserva['back_urls'];
     if (rawBackUrls is Map) {
       final mapped = <String, String>{};
-      rawBackUrls.forEach((key, value) {
-        if (key == null || value == null) return;
-        final k = key.toString();
-        final v = value.toString();
-        if (k.isEmpty || v.isEmpty) return;
-        mapped[k] = v;
+      rawBackUrls.forEach((k, v) {
+        if (k != null && v != null) {
+          mapped[k.toString()] = v.toString();
+        }
       });
       return mapped.isEmpty ? null : mapped;
     }
@@ -182,16 +111,15 @@ class ReservationService {
       final rawBody = response.body;
       if (rawBody.isEmpty) {
         return _errorResponse(
-            'El servidor no devolvio datos (codigo ${response.statusCode}).');
+          'El servidor no devolvió datos (codigo ${response.statusCode}).',
+        );
       }
 
-      final data = _safeDecodeBody(rawBody);
-      if (data == null) {
-        return _errorResponse('Respuesta invalida del servidor.');
-      }
+      final sanitized = sanitizeJson(rawBody);
+      final data = jsonDecode(sanitized);
 
       if (response.statusCode == 401) {
-        return _errorResponse('Sesion expirada');
+        return _errorResponse('Sesión expirada');
       }
 
       if (response.statusCode >= 400 && response.statusCode < 500) {
@@ -206,18 +134,16 @@ class ReservationService {
         final paymentLink =
             _cleanPaymentLink(reserva['payment_link']) ??
                 _cleanPaymentLink(reserva['init_point']);
+
         final backUrls = _readBackUrls(reserva) ?? <String, String>{};
-        final environment = reserva['environment']?.toString();
 
         return {
           'success': true,
-          'message':
-              data['message']?.toString() ?? 'Reserva creada correctamente.',
+          'message': data['message']?.toString(),
           'reserva': reserva,
           'payment_link': paymentLink,
           'init_point': reserva['init_point']?.toString(),
           'back_urls': backUrls,
-          'environment': environment,
         };
       }
 
@@ -240,6 +166,7 @@ class ReservationService {
     required String fecha,
   }) async {
     final headers = await _authHeaders();
+
     final response = await http.get(
       Uri.parse('$baseUrl/canchas/$canchaId/disponibilidad?fecha=$fecha'),
       headers: headers,
@@ -253,10 +180,11 @@ class ReservationService {
   }
 
   // ======================================================
-  //                MIS RESERVAS
+  //                MIS RESERVAS (CORREGIDO)
   // ======================================================
   Future<dynamic> obtenerMisReservas() async {
     final headers = await _authHeaders();
+
     final response = await http.get(
       Uri.parse('$baseUrl/mis-reservas'),
       headers: headers,
@@ -266,7 +194,21 @@ class ReservationService {
       throw Exception('Unauthenticated');
     }
 
-    return jsonDecode(response.body);
+    final raw = response.body;
+    if (raw.isEmpty) {
+      throw Exception("Respuesta vacía del servidor");
+    }
+
+    final sanitized = sanitizeJson(raw);
+
+    try {
+      final decoded = json.decode(sanitized);
+      return decoded;
+    } catch (e) {
+      debugPrint("❌ ERROR JSON MIS RESERVAS: $e");
+      debugPrint("❌ RAW SANITIZED: $sanitized");
+      throw Exception("Formato JSON inválido en mis reservas");
+    }
   }
 
   // ======================================================

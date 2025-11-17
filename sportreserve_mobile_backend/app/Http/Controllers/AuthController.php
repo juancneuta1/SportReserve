@@ -81,6 +81,12 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
+        try {
+            UserLoginSucceeded::dispatch($user, $request);
+        } catch (\Throwable $e) {
+            \Log::error('Error despachando UserLoginSucceeded: ' . $e->getMessage());
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $payload = [

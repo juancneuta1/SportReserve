@@ -17,59 +17,70 @@ class CanchaController extends Controller
     }
 
     /**
+     * Sanitiza y normaliza cualquier estructura antes de convertirla a JSON
+     */
+    private function cleanForJson(mixed $data): mixed
+    {
+        $encoded = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+
+        if ($encoded === false) {
+            return $data;
+        }
+
+        return json_decode($encoded, true);
+    }
+
+    /**
      * Mostrar todas las canchas registradas en el sistema.
      */
     public function index(Request $request): JsonResponse
     {
         $query = Cancha::query();
 
-        if ($request->has('tipo') && $request->tipo !== null) {
-            $query->whereRaw("unaccent(LOWER(tipo::text)) LIKE unaccent(?)", ['%' . strtolower($request->tipo) . '%']);
+        if ($request->filled('tipo')) {
+            $query->whereRaw("unaccent(lower(tipo::text)) LIKE unaccent(?)", ['%' . strtolower($request->tipo) . '%']);
         }
 
-        if ($request->has('ubicacion') && $request->ubicacion !== null) {
-            $query->whereRaw("LOWER(unaccent(ubicacion::text)) LIKE ?", ['%' . strtolower($request->ubicacion) . '%']);
+        if ($request->filled('ubicacion')) {
+            $query->whereRaw("lower(unaccent(ubicacion::text)) LIKE unaccent(?)", ['%' . strtolower($request->ubicacion) . '%']);
         }
 
         if ($request->has('disponibilidad')) {
-            $value = filter_var($request->disponibilidad, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-            if (!is_null($value)) {
-                $query->where('disponibilidad', $value);
+            $val = filter_var($request->disponibilidad, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if (!is_null($val)) {
+                $query->where('disponibilidad', $val);
             }
         }
 
         $date = $request->input('fecha', now()->toDateString());
         $canchas = $query->get();
 
-        // 🧩 Validación extra: que las canchas tengan coordenadas válidas
-        $canchas = $canchas->filter(function ($cancha) {
-            return !is_null($cancha->latitud) && !is_null($cancha->longitud);
-        })->values()->map(fn (Cancha $cancha) => $this->appendAvailability($cancha, $date));
+        // Filtrar las canchas que no tengan coordenadas válidas
+        $canchas = $canchas
+            ->filter(fn($c) => !is_null($c->latitud) && !is_null($c->longitud))
+            ->values()
+            ->map(fn(Cancha $c) => $this->appendAvailability($c, $date));
 
-        // ✅ Estructura uniforme para la API
-        return response()->json([
-            'success' => true,
-            'count' => $canchas->count(),
-            'fecha' => $date,
-            'canchas' => $canchas,
-        ], Response::HTTP_OK);
+        return response()->json(
+            $this->cleanForJson([
+                'success' => true,
+                'count' => $canchas->count(),
+                'fecha' => $date,
+                'canchas' => $canchas,
+            ]),
+            Response::HTTP_OK
+        );
     }
 
-
-
-
     /**
-     * Registrar una nueva cancha con la información proporcionada.
+     * Registrar una nueva cancha.
      */
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        // 🔒 Verificar que el usuario tenga rol administrador
         if (!$user || !in_array($user->rol, ['Administrador', 'admin', 'staff'])) {
-            return response()->json([
-                'message' => 'No autorizado. Solo administradores pueden crear canchas.',
-            ], Response::HTTP_FORBIDDEN);
+            return response()->json(['message' => 'No autorizado'], 403);
         }
 
         $validated = $request->validate([
@@ -78,56 +89,56 @@ class CanchaController extends Controller
             'ubicacion' => ['required', 'string'],
             'latitud' => ['required', 'numeric'],
             'longitud' => ['required', 'numeric'],
-            'precio_por_hora' => ['required', 'numeric', 'min:0'],
-            'disponibilidad' => ['sometimes', 'boolean'],
-            'imagen' => ['nullable', 'url'],
+            'precio_por_hora' => ['required', 'numeric'],
+            'descripcion' => ['nullable', 'string'],
+            'servicios' => ['nullable', 'string'],
+            'imagen' => ['nullable', 'string'],
         ]);
 
-        // ✅ Crear la cancha en la base de datos
         $cancha = Cancha::create($validated);
 
-        // ✅ Notificar respuesta para Flutter
-        return response()->json([
-            'success' => true,
-            'message' => 'Cancha registrada correctamente',
-            'cancha' => $cancha,
-        ], Response::HTTP_CREATED);
+        return response()->json(
+            $this->cleanForJson([
+                'success' => true,
+                'message' => 'Cancha registrada correctamente',
+                'cancha' => $cancha,
+            ]),
+            Response::HTTP_CREATED
+        );
     }
 
-
-
     /**
-     * Mostrar la informacion de una cancha especifica.
+     * Mostrar información de una cancha
      */
     public function show(int $id): JsonResponse
     {
         try {
             $cancha = Cancha::findOrFail($id);
-        } catch (ModelNotFoundException $exception) {
-            return response()->json([
-                'message' => 'Cancha no encontrada',
-            ], Response::HTTP_NOT_FOUND);
+        } catch (ModelNotFoundException) {
+            return response()->json(['message' => 'Cancha no encontrada'], 404);
         }
 
         $date = request()->input('fecha', now()->toDateString());
 
-        return response()->json([
-            'cancha' => $this->appendAvailability($cancha, $date),
-            'fecha' => $date,
-        ], Response::HTTP_OK);
+        return response()->json(
+            $this->cleanForJson([
+                'success' => true,
+                'cancha' => $this->appendAvailability($cancha, $date),
+                'fecha' => $date,
+            ]),
+            200
+        );
     }
 
     /**
-     * Actualizar los datos de una cancha existente.
+     * Actualizar cancha
      */
     public function update(Request $request, int $id): JsonResponse
     {
         try {
             $cancha = Cancha::findOrFail($id);
-        } catch (ModelNotFoundException $exception) {
-            return response()->json([
-                'message' => 'Cancha no encontrada',
-            ], Response::HTTP_NOT_FOUND);
+        } catch (ModelNotFoundException) {
+            return response()->json(['message' => 'Cancha no encontrada'], 404);
         }
 
         $validated = $request->validate([
@@ -137,44 +148,42 @@ class CanchaController extends Controller
                 'string',
                 Rule::unique('canchas', 'nombre')->ignore($id),
             ],
-            'tipo' => ['sometimes', 'required', 'string'],
-            'ubicacion' => ['sometimes', 'required', 'string'],
-            'latitud' => ['sometimes', 'required', 'numeric'],
-            'longitud' => ['sometimes', 'required', 'numeric'],
-            'precio_por_hora' => ['sometimes', 'required', 'numeric', 'min:0'],
-            'disponibilidad' => ['sometimes', 'boolean'],
+            'tipo' => ['sometimes', 'string'],
+            'ubicacion' => ['sometimes', 'string'],
+            'latitud' => ['sometimes', 'numeric'],
+            'longitud' => ['sometimes', 'numeric'],
+            'precio_por_hora' => ['sometimes', 'numeric'],
             'descripcion' => ['nullable', 'string'],
             'servicios' => ['nullable', 'string'],
-            'imagen' => ['nullable', 'url'],
+            'imagen' => ['nullable', 'string'],
         ]);
 
         $cancha->update($validated);
 
-        return response()->json([
-            'message' => 'Cancha actualizada correctamente',
-            'cancha' => $cancha,
-        ], Response::HTTP_OK);
+        return response()->json(
+            $this->cleanForJson([
+                'success' => true,
+                'message' => 'Cancha actualizada correctamente',
+                'cancha' => $cancha,
+            ]),
+            200
+        );
     }
 
-
     /**
-     * Eliminar una cancha del catalogo disponible.
+     * Eliminar una cancha
      */
     public function destroy(int $id): JsonResponse
     {
         try {
             $cancha = Cancha::findOrFail($id);
-        } catch (ModelNotFoundException $exception) {
-            return response()->json([
-                'message' => 'Cancha no encontrada',
-            ], Response::HTTP_NOT_FOUND);
+        } catch (ModelNotFoundException) {
+            return response()->json(['message' => 'Cancha no encontrada'], 404);
         }
 
         $cancha->delete();
 
-        return response()->json([
-            'message' => 'Cancha eliminada correctamente',
-        ], Response::HTTP_OK);
+        return response()->json(['success' => true, 'message' => 'Cancha eliminada'], 200);
     }
 
     private function appendAvailability(Cancha $cancha, string $date): Cancha
