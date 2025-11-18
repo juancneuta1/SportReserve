@@ -12,7 +12,7 @@
                     <tr>
                         <td>
                             <a href="{{ $url }}" class="button button-{{ $color }}" target="_blank"
-                               style="border-radius: 12px; background: #16a34a; border: 1px solid #16a34a; color: #ffffff; padding: 12px 24px; font-weight: 700; letter-spacing: 0.2px; text-decoration: none; display: inline-block;">
+                               style="border-radius: 14px; background: linear-gradient(145deg, #16a34a, #128a3e); border: 1px solid #128a3e; color: #ffffff; padding: 12px 26px; font-weight: 700; letter-spacing: 0.2px; text-decoration: none; display: inline-block; box-shadow: 0 10px 24px rgba(22, 163, 74, 0.25);">
                                 {{ $slot }}
                             </a>
                         </td>

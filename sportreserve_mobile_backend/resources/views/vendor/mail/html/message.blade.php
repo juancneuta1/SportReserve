@@ -1,4 +1,3 @@
-@props(['subcopy'])
 @component('mail::layout')
     {{-- Body --}}
     {{ $slot }}

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-// 🏁 Onboarding y autenticación
 import 'package:sportreserve_mobile_frontend/features/onboarding/onboarding_page.dart';
 import 'package:sportreserve_mobile_frontend/features/auth/login_page.dart';
 import 'package:sportreserve_mobile_frontend/features/auth/register_page.dart';
@@ -9,52 +8,42 @@ import 'package:sportreserve_mobile_frontend/features/auth/forgot_password_page.
 import 'package:sportreserve_mobile_frontend/features/auth/reset_password_page.dart';
 import 'package:sportreserve_mobile_frontend/features/profile/user_profile_page.dart';
 
-// ⚽ Canchas
 import 'package:sportreserve_mobile_frontend/features/canchas/mapa_canchas_page.dart';
 import 'package:sportreserve_mobile_frontend/features/canchas/canchas_page.dart';
 import 'package:sportreserve_mobile_frontend/features/canchas/registrar_cancha_page.dart';
 import 'package:sportreserve_mobile_frontend/features/canchas/cancha_detail_page.dart';
 
-// 🧠 Modelos y servicios
 import 'package:sportreserve_mobile_frontend/models/cancha.dart' as model;
 import 'package:sportreserve_mobile_frontend/models/cancha_meta.dart';
 import 'package:sportreserve_mobile_frontend/services/cancha_service.dart';
 import 'package:sportreserve_mobile_frontend/services/auth_service.dart';
 
-// 🗄️ Base de datos local (Drift)
 import 'package:sportreserve_mobile_frontend/db/app_database.dart';
 
-// 🕓 Reservas
 import 'features/reservas/mis_reservas_page.dart';
 import 'features/reservas/pasarela_pago_page.dart';
 
-/// 🚀 Configuración principal del enrutador de SportReserve
 GoRouter appRouter(bool hasSeenOnboarding) => GoRouter(
   initialLocation: hasSeenOnboarding ? '/mapa' : '/onboarding',
 
   routes: [
-    // 🏁 Onboarding
     GoRoute(
       path: '/onboarding',
       builder: (context, state) => const OnboardingPage(),
     ),
 
-    // ⚽ Mapa principal de canchas
     GoRoute(
       path: '/mapa',
       builder: (context, state) => const MapaCanchasPage(),
     ),
 
-    // 📋 Listado de canchas
     GoRoute(path: '/canchas', builder: (context, state) => const CanchasPage()),
 
-    // 🏗️ Registro de nueva cancha
     GoRoute(
       path: '/registrar-cancha',
       builder: (context, state) => const RegistrarCanchaPage(),
     ),
 
-    // 🔐 Autenticación
     GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
     GoRoute(
       path: '/register',
@@ -83,7 +72,6 @@ GoRouter appRouter(bool hasSeenOnboarding) => GoRouter(
       builder: (context, state) => const UserProfilePage(),
     ),
 
-    // 📅 Reservas del usuario
     GoRoute(
       path: '/mis-reservas',
       builder: (context, state) => const MisReservasPage(),
@@ -166,7 +154,6 @@ GoRouter appRouter(bool hasSeenOnboarding) => GoRouter(
     ),
   ],
 
-  // 🔒 Redirecciones globales de autenticación
   redirect: (context, state) {
     final loggedIn = AuthService.instance.currentUser != null;
     final isAuthRoute =

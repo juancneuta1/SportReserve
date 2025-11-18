@@ -43,21 +43,22 @@
             border-bottom: 1px solid var(--border);
         }
         .logo-circle {
-            width: 64px;
-            height: 64px;
+            width: 72px;
+            height: 72px;
             border-radius: 50%;
-            background: #d1fadf;
+            background: linear-gradient(145deg, #d1fadf, #b8f3cc);
             color: var(--emerald-dark);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-weight: 800;
-            font-size: 1.1rem;
-            margin-bottom: 10px;
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+            box-shadow: 0 12px 32px rgba(22, 163, 74, 0.18);
         }
         .header h1 {
             margin: 0;
-            font-size: 21px;
+            font-size: 22px;
             font-weight: 800;
             color: var(--emerald-dark);
             letter-spacing: 0.3px;
