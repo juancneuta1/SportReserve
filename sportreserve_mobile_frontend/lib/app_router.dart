@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:sportreserve_mobile_frontend/features/onboarding/onboarding_page.dart';
 import 'package:sportreserve_mobile_frontend/features/auth/login_page.dart';
 import 'package:sportreserve_mobile_frontend/features/auth/register_page.dart';
+import 'package:sportreserve_mobile_frontend/features/auth/forgot_password_page.dart';
+import 'package:sportreserve_mobile_frontend/features/auth/reset_password_page.dart';
 import 'package:sportreserve_mobile_frontend/features/profile/user_profile_page.dart';
 
 // ⚽ Canchas
@@ -57,6 +59,24 @@ GoRouter appRouter(bool hasSeenOnboarding) => GoRouter(
     GoRoute(
       path: '/register',
       builder: (context, state) => const RegisterPage(),
+    ),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const ForgotPasswordPage(),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      builder: (context, state) => ResetPasswordPage(
+        initialEmail: state.uri.queryParameters['email'],
+        initialToken: state.uri.queryParameters['token'],
+      ),
+    ),
+    GoRoute(
+      path: '/password.reset',
+      builder: (context, state) => ResetPasswordPage(
+        initialEmail: state.uri.queryParameters['email'],
+        initialToken: state.uri.queryParameters['token'],
+      ),
     ),
     GoRoute(
       path: '/profile',
@@ -220,7 +240,7 @@ PasarelaRouteArgs _resolvePasarelaArgs(dynamic extra, Uri uri) {
       titulo: extra.titulo,
     );
   } else if (extra is Map) {
-    readMap(extra as Map<dynamic, dynamic>);
+    readMap(extra);
   } else if (extra is String) {
     paymentLink = extra;
   }

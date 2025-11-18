@@ -18,6 +18,8 @@ Route::get('/ping', fn() => response()->json(['message' => 'API funcionando corr
 // ======================================================
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/password/forgot', [AuthController::class, 'forgotPassword']);
+Route::post('/password/reset', [AuthController::class, 'resetPassword']);
 
 
 // ======================================================
@@ -41,6 +43,11 @@ Route::get('/calificaciones/{cancha_id}/promedio', [CalificacionController::clas
 // Listado de calificaciones de una cancha
 Route::get('/calificaciones/{cancha_id}', [CalificacionController::class, 'listar']);
 
+// Resumen (promedio + total + últimas reseñas)
+Route::get(
+    '/canchas/{cancha_id}/calificaciones/resumen',
+    [CalificacionController::class, 'resumen']
+);
 
 // ======================================================
 //            MERCADO PAGO WEBHOOK (PÚBLICO)

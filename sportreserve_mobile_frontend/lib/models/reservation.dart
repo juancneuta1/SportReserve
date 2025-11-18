@@ -8,6 +8,7 @@ class Reservation {
     required this.endAt,
     required this.status,
     required this.createdAt,
+    required this.deporte,
   });
 
   final int id;
@@ -17,6 +18,7 @@ class Reservation {
   final DateTime endAt;
   final String status;
   final DateTime createdAt;
+  final String deporte;
 
   /// Calcula la duracion de la reserva para facilitar validaciones en UI.
   Duration get duration => endAt.difference(startAt);
@@ -48,6 +50,8 @@ class Reservation {
       endAt: parseDate(json['end_at'] ?? json['endAt']),
       status: (json['status'] as String?)?.trim() ?? 'pending',
       createdAt: parseDate(json['created_at'] ?? json['createdAt']),
+      deporte:
+          (json['deporte'] ?? json['sport'] ?? json['tipo'] ?? '').toString(),
     );
   }
 
@@ -62,6 +66,7 @@ class Reservation {
       'end_at': encodeDate(endAt),
       'status': status,
       'created_at': encodeDate(createdAt),
+      'deporte': deporte,
     };
   }
 }

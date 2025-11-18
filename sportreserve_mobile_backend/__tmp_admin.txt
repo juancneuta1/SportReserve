@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers\Admin;
 
@@ -15,7 +15,7 @@ class CanchaAdminController extends Controller
     {
     }
 
-    // Página principal del panel
+    // ðŸ  PÃ¡gina principal del panel
     public function index()
     {
         $date = now()->toDateString();
@@ -27,24 +27,18 @@ class CanchaAdminController extends Controller
         ]);
     }
 
-    // Formulario para crear
+    // ðŸ†• Formulario para crear
     public function create()
     {
         return view('admin.canchas.create');
     }
 
-    // Guardar nueva cancha
+    // ðŸ’¾ Guardar nueva cancha
     public function store(Request $request)
     {
-        // Normalizar checkbox antes de validar
-        $request->merge([
-            'disponibilidad' => $request->has('disponibilidad'),
-        ]);
-
         $validated = $request->validate([
             'nombre' => 'required|string|max:100|unique:canchas',
-            'tipo' => 'required|array|min:1',
-            'tipo.*' => 'string|max:50',
+            'tipo' => 'required|string|max:50',
             'ubicacion' => 'required|string|max:150',
             'latitud' => 'required|numeric',
             'longitud' => 'required|numeric',
@@ -60,17 +54,16 @@ class CanchaAdminController extends Controller
             $validated['imagen'] = Storage::url($path);
         }
 
-        $validated['disponibilidad'] = $request->boolean('disponibilidad');
-        $validated['tipo'] = array_values($request->input('tipo', []));
+        $validated['disponibilidad'] = $request->has('disponibilidad');
 
         $cancha = Cancha::create($validated);
 
         AdminActionNotifier::send(
             $request->user(),
-            'Creación de cancha',
-            "Se registró la cancha {$cancha->nombre}.",
+            'CreaciÃ³n de cancha',
+            "Se registrÃ³ la cancha {$cancha->nombre}.",
             [
-                'Ubicación' => $cancha->ubicacion,
+                'UbicaciÃ³n' => $cancha->ubicacion,
                 'Precio por hora' => number_format($cancha->precio_por_hora, 0, ',', '.'),
             ]
         );
@@ -79,7 +72,7 @@ class CanchaAdminController extends Controller
             ->with('success', 'Cancha creada correctamente.');
     }
 
-    // Editar
+    // âœï¸ Editar
     public function edit(Cancha $cancha)
     {
         $date = now()->toDateString();
@@ -90,18 +83,12 @@ class CanchaAdminController extends Controller
         ]);
     }
 
-    // Actualizar
+    // ðŸ”„ Actualizar
     public function update(Request $request, Cancha $cancha)
     {
-        // Normalizar checkbox antes de validar
-        $request->merge([
-            'disponibilidad' => $request->has('disponibilidad'),
-        ]);
-
         $validated = $request->validate([
             'nombre' => 'required|string|max:100|unique:canchas,nombre,' . $cancha->id,
-            'tipo' => 'required|array|min:1',
-            'tipo.*' => 'string|max:50',
+            'tipo' => 'required|string|max:50',
             'ubicacion' => 'required|string|max:150',
             'latitud' => 'required|numeric',
             'longitud' => 'required|numeric',
@@ -120,17 +107,16 @@ class CanchaAdminController extends Controller
             $validated['imagen'] = Storage::url($path);
         }
 
-        $validated['disponibilidad'] = $request->boolean('disponibilidad');
-        $validated['tipo'] = array_values($request->input('tipo', []));
+        $validated['disponibilidad'] = $request->has('disponibilidad');
         $cancha->update($validated);
         $cancha->refresh();
 
         AdminActionNotifier::send(
             $request->user(),
-            'Actualización de cancha',
-            "Se modificó la cancha {$cancha->nombre}.",
+            'ActualizaciÃ³n de cancha',
+            "Se modificÃ³ la cancha {$cancha->nombre}.",
             [
-                'Ubicación' => $cancha->ubicacion,
+                'UbicaciÃ³n' => $cancha->ubicacion,
                 'Disponibilidad' => $cancha->disponibilidad ? 'Disponible' : 'No disponible',
                 'Precio por hora' => number_format($cancha->precio_por_hora, 0, ',', '.'),
             ]
@@ -140,7 +126,7 @@ class CanchaAdminController extends Controller
             ->with('success', 'Cancha actualizada correctamente.');
     }
 
-    // Eliminar
+    // ðŸ—‘ï¸ Eliminar
     public function destroy(Request $request, Cancha $cancha)
     {
         $nombre = $cancha->nombre;
@@ -152,8 +138,8 @@ class CanchaAdminController extends Controller
 
         AdminActionNotifier::send(
             $request->user(),
-            'Eliminación de cancha',
-            "Se eliminó la cancha {$nombre}.",
+            'EliminaciÃ³n de cancha',
+            "Se eliminÃ³ la cancha {$nombre}.",
             [
                 'Administrador' => $request->user()?->email ?? 'Desconocido',
             ]
@@ -173,3 +159,4 @@ class CanchaAdminController extends Controller
         return $cancha;
     }
 }
+

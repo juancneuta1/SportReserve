@@ -42,7 +42,7 @@
                             <tr>
                                 <td style="padding:12px 16px;border:1px solid #e3e7e4;border-radius:12px;margin-top:12px;">
                                     <strong style="color:#187c3b;display:block;">Total</strong>
-                                    <span>S/ {{ number_format($reserva->precio_por_cancha * max(1, $reserva->cantidad_horas), 2) }}</span>
+                                    <span>COP/ {{ number_format($reserva->precio_por_cancha * max(1, $reserva->cantidad_horas), 2) }}</span>
                                 </td>
                             </tr>
                         </table>

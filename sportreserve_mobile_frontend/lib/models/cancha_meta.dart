@@ -25,9 +25,12 @@ class CanchaMeta {
     late String surface;
     late IconData icon;
     late Color color;
+    final deportePrincipal = cancha.deportesDisponibles.isNotEmpty
+        ? cancha.deportesDisponibles.first
+        : cancha.tipo;
 
     // Detectar tipo de cancha
-    switch (cancha.tipo.toLowerCase()) {
+    switch (deportePrincipal.toLowerCase()) {
       case 'fútbol':
       case 'futbol':
         type = 'Fútbol';

@@ -38,7 +38,12 @@ class CanchaController extends Controller
         $query = Cancha::query();
 
         if ($request->filled('tipo')) {
-            $query->whereRaw("unaccent(lower(tipo::text)) LIKE unaccent(?)", ['%' . strtolower($request->tipo) . '%']);
+            $tipos = (array) $request->input('tipo');
+            $query->where(function ($q) use ($tipos) {
+                foreach ($tipos as $tipo) {
+                    $q->orWhereRaw("unaccent(lower(tipo::text)) LIKE unaccent(?)", ['%' . strtolower($tipo) . '%']);
+                }
+            });
         }
 
         if ($request->filled('ubicacion')) {
@@ -85,7 +90,8 @@ class CanchaController extends Controller
 
         $validated = $request->validate([
             'nombre' => ['required', 'string', 'unique:canchas,nombre'],
-            'tipo' => ['required', 'string'],
+            'tipo' => ['required', 'array', 'min:1'],
+            'tipo.*' => ['string'],
             'ubicacion' => ['required', 'string'],
             'latitud' => ['required', 'numeric'],
             'longitud' => ['required', 'numeric'],
@@ -148,7 +154,8 @@ class CanchaController extends Controller
                 'string',
                 Rule::unique('canchas', 'nombre')->ignore($id),
             ],
-            'tipo' => ['sometimes', 'string'],
+            'tipo' => ['sometimes', 'array', 'min:1'],
+            'tipo.*' => ['string'],
             'ubicacion' => ['sometimes', 'string'],
             'latitud' => ['sometimes', 'numeric'],
             'longitud' => ['sometimes', 'numeric'],

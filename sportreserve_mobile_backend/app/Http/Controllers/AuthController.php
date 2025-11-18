@@ -6,8 +6,10 @@ use App\Models\User;
 use App\Models\AdminNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 
 
@@ -16,11 +18,15 @@ class AuthController extends Controller
     // ✅ Registro de usuario
     public function register(Request $request)
     {
+        if (ob_get_length()) {
+            ob_clean(); // limpia salida previa/BOM
+        }
+
         try {
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users',
-                'password' => 'required|string|min:6|confirmed', // ✅ necesita también 'password_confirmation'
+                'password' => 'required|string|min:8|confirmed', // ✅ necesita también 'password_confirmation'
             ]);
 
             $user = User::create([
@@ -61,6 +67,108 @@ class AuthController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    // Recuperar contraseña: enviar enlace de restablecimiento (API)
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $status = Password::sendResetLink(
+            $request->only('email')
+        );
+
+        if ($status === Password::RESET_LINK_SENT) {
+            return response()->json([
+                'message' => 'Se envió un enlace de restablecimiento a tu correo.',
+                'status' => __($status),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'No se pudo enviar el enlace de restablecimiento.',
+            'status' => __($status),
+        ], 422);
+    }
+
+    // Form web para ingresar nueva contraseña (token + email)
+    public function showResetForm(Request $request)
+    {
+        return view('auth.reset-password', [
+            'token' => $request->query('token'),
+            'email' => $request->query('email'),
+        ]);
+    }
+
+    // Manejo web del restablecimiento (POST)
+    public function handleReset(Request $request)
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $existing = User::where('email', $request->email)->first();
+        if ($existing && Hash::check($request->password, $existing->password)) {
+            return back()->withErrors(['password' => 'La nueva contraseña no debe ser igual a la anterior.'])->withInput();
+        }
+
+        $existing = User::where('email', $request->email)->first();
+        if ($existing && Hash::check($request->password, $existing->password)) {
+            return response()->json([
+                'message' => 'La nueva contraseña no debe ser igual a la anterior.',
+                'status' => 'passwords.same',
+            ], 422);
+        }
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'remember_token' => Str::random(60),
+                ])->save();
+            }
+        );
+
+        return $status === Password::PASSWORD_RESET
+            ? view('auth.reset-done')
+            : back()->withErrors(['email' => __($status)])->withInput();
+    }
+
+    // Restablecer contraseña usando el token enviado al correo
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'remember_token' => Str::random(60),
+                ])->save();
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET) {
+            return response()->json([
+                'message' => 'Contraseña restablecida correctamente.',
+                'status' => __($status),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'No se pudo restablecer la contraseña.',
+            'status' => __($status),
+        ], 422);
     }
 
     // ✅ Inicio de sesión
@@ -155,7 +263,7 @@ class AuthController extends Controller
             $user = $request->user();
             $validated = $request->validate([
                 'current_password' => 'required|string',
-                'new_password' => 'required|string|min:6|confirmed',
+                'new_password' => 'required|string|min:8|confirmed',
             ]);
             if (!Hash::check($validated['current_password'], $user->password)) {
                 return response()->json([

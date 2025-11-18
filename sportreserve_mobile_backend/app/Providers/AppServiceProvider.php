@@ -7,6 +7,7 @@ use App\Mail\UserReservationCreated;
 use App\Models\AdminNotification;
 use App\Models\Reserva;
 use App\Services\CourtAvailabilityService;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
@@ -27,6 +28,19 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useBootstrapFive();
+
+        // URL de restablecimiento para clientes móviles/web externos
+        ResetPassword::createUrlUsing(function ($user, string $token) {
+            $base = config('app.frontend_password_reset_url', env('FRONTEND_PASSWORD_RESET_URL'));
+
+            // Fallback: APP_URL (útil si el request llega desde 10.0.2.2 pero el front se abre en 127.0.0.1)
+            $base = $base ?: config('app.url', '');
+
+            // Ruta de reset (puedes cambiarla si tu front usa otro path)
+            $path = '/reset-password';
+
+            return rtrim($base, '/') . $path . '?token=' . $token . '&email=' . urlencode($user->email);
+        });
 
         Reserva::created(function (Reserva $reserva) {
             AdminNotification::create([

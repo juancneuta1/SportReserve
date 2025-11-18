@@ -29,6 +29,7 @@ class Cancha extends Model
         'precio_por_hora' => 'float',
         'latitud' => 'float',
         'longitud' => 'float',
+        'tipo' => 'array',
     ];
 
     public function reservas()

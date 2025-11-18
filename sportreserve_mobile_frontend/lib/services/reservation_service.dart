@@ -87,6 +87,7 @@ class ReservationService {
   // ======================================================
   Future<Map<String, dynamic>> crearReserva({
     required int canchaId,
+    required String deporte,
     required String fecha,
     required String hora,
     required int cantidadHoras,
@@ -96,6 +97,7 @@ class ReservationService {
       final headers = await _authHeaders();
       final body = {
         'cancha_id': canchaId,
+        'deporte': deporte,
         'fecha': fecha,
         'hora': hora,
         'cantidad_horas': cantidadHoras,

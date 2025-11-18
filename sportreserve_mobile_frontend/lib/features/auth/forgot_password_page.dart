@@ -5,66 +5,54 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_service.dart';
 import '../auth/widgets/auth_text_field.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class ForgotPasswordPage extends StatefulWidget {
+  const ForgotPasswordPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   bool _loading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
-    // 🔥 Limpia cualquier sesión previa que pueda tener JSON corrupto
-    await AuthService.instance.clearSession();
+  Future<void> _submit() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Ingresa tu correo electrónico.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
 
     setState(() => _loading = true);
-
     try {
-      final success = await AuthService.instance.login(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final msg = await AuthService.instance.sendPasswordResetEmail(email);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.green),
       );
-
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Inicio de sesión exitoso"),
-            backgroundColor: Colors.greenAccent,
-          ),
-        );
-
-        final redirectData = GoRouterState.of(context).extra;
-        if (redirectData is Map && redirectData['redirect'] != null) {
-          final redirectPath = redirectData['redirect'] as String;
-          context.go(redirectPath);
-        } else {
-          context.go('/profile');
-        }
-      } else {
-        _showError('Correo o contraseña incorrectos.');
-      }
     } catch (e) {
-      _showError('Error al iniciar sesión: $e');
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
-    );
   }
 
   @override
@@ -115,31 +103,31 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                     child: const Icon(
-                      Icons.login_rounded,
+                      Icons.lock_reset,
                       color: Colors.greenAccent,
                       size: 45,
                     ),
                   ),
                   const SizedBox(height: 22),
                   Text(
-                    "SportReserve",
+                    "Recuperar contraseña",
                     style: GoogleFonts.poppins(
                       color: Colors.white,
-                      fontSize: 32,
+                      fontSize: 28,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
-                    "Inicia sesión y vuelve al juego.",
+                    "Ingresa tu correo y te enviaremos el enlace de restablecimiento.",
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       color: Colors.white70,
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 30),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -166,20 +154,12 @@ class _LoginPageState extends State<LoginPage> {
                           icon: Icons.email_outlined,
                           dark: true,
                         ),
-                        const SizedBox(height: 14),
-                        AuthTextField(
-                          controller: _passwordController,
-                          label: "Contraseña",
-                          icon: Icons.lock_outline,
-                          obscureText: true,
-                          dark: true,
-                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 30),
                   ElevatedButton(
-                    onPressed: _loading ? null : _login,
+                    onPressed: _loading ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00C853),
                       minimumSize: const Size(double.infinity, 52),
@@ -199,7 +179,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           )
                         : Text(
-                            "Entrar",
+                            "Enviar enlace",
                             style: GoogleFonts.poppins(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -207,39 +187,15 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "¿No tienes cuenta? ",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => context.push('/register'),
-                        child: Text(
-                          "Regístrate",
-                          style: GoogleFonts.poppins(
-                            color: Colors.greenAccent,
-                            fontWeight: FontWeight.w600,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 18),
                   TextButton(
-                    onPressed: () => context.push('/forgot-password'),
+                    onPressed: () => context.go('/login'),
                     child: Text(
-                      "¿Olvidaste tu contraseña?",
+                      "Volver al inicio de sesión",
                       style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                        color: Colors.greenAccent,
                         decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),

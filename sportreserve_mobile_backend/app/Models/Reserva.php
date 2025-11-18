@@ -19,6 +19,7 @@ class Reserva extends Model
         'precio_por_cancha',
         'precio',
         'estado',
+        'deporte',
         'comprobante',
         'payment_link',
         'payment_reference',

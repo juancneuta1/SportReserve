@@ -268,6 +268,8 @@ class _MisReservasPageState extends State<MisReservasPage> {
           final estado = (r['estado'] ?? 'pendiente').toString();
           final estadoPago = (r['estado_pago'] ?? 'pendiente').toString();
           final precio = r['precio_por_cancha']?.toString() ?? '0';
+          final deporte =
+              (r['deporte'] ?? r['tipo'] ?? r['sport'] ?? '').toString();
 
           return Card(
             elevation: 3,
@@ -285,11 +287,22 @@ class _MisReservasPageState extends State<MisReservasPage> {
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: scheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (deporte.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      'Deporte: $deporte',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text('📅 $fecha   ⏰ $hora - $horaFin'),
-                  Text('💰 $precio COP'),
+                Text('📅 $fecha   ⏰ $hora - $horaFin'),
+                Text('💰 $precio COP'),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,

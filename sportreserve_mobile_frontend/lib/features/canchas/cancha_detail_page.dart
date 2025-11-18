@@ -4,17 +4,14 @@ import 'package:intl/intl.dart';
 import 'package:sportreserve_mobile_frontend/models/cancha.dart' as model;
 import 'package:sportreserve_mobile_frontend/models/cancha_meta.dart';
 import 'package:sportreserve_mobile_frontend/features/canchas/widgets/calificacion_widget.dart';
+import 'package:sportreserve_mobile_frontend/features/canchas/widgets/deporte_selector.dart';
 import 'package:sportreserve_mobile_frontend/services/reservation_service.dart';
 import 'package:sportreserve_mobile_frontend/services/notification_service.dart';
 import 'package:sportreserve_mobile_frontend/services/auth_service.dart';
 import 'package:sportreserve_mobile_frontend/features/reservas/models/pasarela_payment_result.dart';
 
 class CanchaDetailPage extends StatefulWidget {
-  const CanchaDetailPage({
-    super.key,
-    required this.cancha,
-    required this.meta,
-  });
+  const CanchaDetailPage({super.key, required this.cancha, required this.meta});
 
   final model.Cancha cancha;
   final CanchaMeta meta;
@@ -28,6 +25,17 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
   DateTime _selectedDate = DateTime.now();
   TimeOfDay? _selectedTime;
   int _cantidadHoras = 1;
+  String? _selectedDeporte;
+  late final List<String> _deportesDisponibles;
+
+  @override
+  void initState() {
+    super.initState();
+    _deportesDisponibles = widget.cancha.deportesDisponibles;
+    if (_deportesDisponibles.length == 1) {
+      _selectedDeporte = _deportesDisponibles.first;
+    }
+  }
 
   // -------------------------------------------------------------------
   // 🔹 RESERVAR CANCHA
@@ -36,7 +44,8 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
     if (_reserving) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final user = AuthService.instance.currentUser ??
+    final user =
+        AuthService.instance.currentUser ??
         await AuthService.instance.fetchProfile();
 
     if (user == null) {
@@ -55,6 +64,16 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
       return;
     }
 
+    if (_selectedDeporte == null || _selectedDeporte!.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona el deporte que deseas reservar.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _reserving = true);
 
     try {
@@ -65,6 +84,7 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
 
       final response = await ReservationService().crearReserva(
         canchaId: widget.cancha.id,
+        deporte: _selectedDeporte!,
         fecha: fecha,
         hora: parsedHora,
         cantidadHoras: _cantidadHoras,
@@ -73,6 +93,23 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
 
       if (!mounted) return;
 
+      // ================================================================
+      // 🔥 FIX DEL ERROR 422 — monto mínimo pasarela MercadoPago
+      // ================================================================
+      if (response['statusCode'] == 422) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'El pago no puede procesarse'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return; // ⛔ detener flujo y NO abrir pasarela
+      }
+
+      // ================================================================
+      // 🔥 FLUJO NORMAL DE RESERVA
+      // ================================================================
       if (response['success'] == true) {
         messenger.showSnackBar(
           const SnackBar(
@@ -89,14 +126,15 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
 
         final reserva = response['reserva'] as Map<String, dynamic>?;
         final paymentLink = _resolvePaymentLink(response, reserva);
-        final backUrls = _normalizeBackUrls(response['back_urls']) ??
+        final backUrls =
+            _normalizeBackUrls(response['back_urls']) ??
             _normalizeBackUrls(reserva?['back_urls']);
         final reservaId = _parseReservationId(reserva);
         final backendSandbox =
             (response['environment'] ?? reserva?['environment'])
-                    ?.toString()
-                    .toLowerCase() ==
-                'sandbox';
+                ?.toString()
+                .toLowerCase() ==
+            'sandbox';
 
         if (paymentLink != null && paymentLink.isNotEmpty) {
           await _openPasarelaPago(
@@ -124,9 +162,7 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
         );
       }
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _reserving = false);
     }
@@ -135,6 +171,16 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
   // -------------------------------------------------------------------
   // 🔹 UTILIDADES DE RESERVA Y PAGO
   // -------------------------------------------------------------------
+
+  String? _extractDeporteError(dynamic rawErrors) {
+    if (rawErrors is Map) {
+      final value =
+          rawErrors['deporte'] ?? rawErrors['sport'] ?? rawErrors['tipo'];
+      if (value is List && value.isNotEmpty) return value.first.toString();
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    return null;
+  }
 
   String? _resolvePaymentLink(
     Map<String, dynamic> response,
@@ -199,7 +245,9 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
       case PasarelaPaymentStatus.success:
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('Pago confirmado. Actualiza Mis Reservas para ver detalles.'),
+            content: Text(
+              'Pago confirmado. Actualiza Mis Reservas para ver detalles.',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -256,14 +304,18 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.lock_outline,
-                          color: Colors.redAccent, size: 28),
+                      const Icon(
+                        Icons.lock_outline,
+                        color: Colors.redAccent,
+                        size: 28,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         expired
                             ? 'Tu sesión ha expirado'
                             : 'Inicia sesión para reservar',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
                             ),
@@ -380,7 +432,9 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
                     child: OutlinedButton.icon(
                       onPressed: _selectDate,
                       icon: const Icon(Icons.calendar_month),
-                      label: Text(DateFormat('dd/MM/yyyy').format(_selectedDate)),
+                      label: Text(
+                        DateFormat('dd/MM/yyyy').format(_selectedDate),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -400,6 +454,15 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
 
               const SizedBox(height: 12),
 
+              if (_deportesDisponibles.isNotEmpty) ...[
+                DeporteSelector(
+                  deportes: _deportesDisponibles,
+                  selected: _selectedDeporte,
+                  onSelect: (value) => setState(() => _selectedDeporte = value),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -410,10 +473,9 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
                       if (v != null) setState(() => _cantidadHoras = v);
                     },
                     items: List.generate(5, (i) => i + 1)
-                        .map((h) => DropdownMenuItem(
-                              value: h,
-                              child: Text('$h'),
-                            ))
+                        .map(
+                          (h) => DropdownMenuItem(value: h, child: Text('$h')),
+                        )
                         .toList(),
                   ),
                 ],
@@ -432,7 +494,9 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: _reserving ? null : _handleReserve,
+                  onPressed: _reserving || _selectedDeporte == null
+                      ? null
+                      : _handleReserve,
                   icon: _reserving
                       ? const SizedBox(
                           width: 18,
@@ -456,8 +520,11 @@ class _CanchaDetailPageState extends State<CanchaDetailPage> {
               Center(
                 child: Column(
                   children: [
-                    const Icon(Icons.lock_outline,
-                        size: 50, color: Colors.grey),
+                    const Icon(
+                      Icons.lock_outline,
+                      size: 50,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       'Inicia sesión para poder reservar una cancha',
@@ -554,9 +621,9 @@ class _ServiceChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withOpacity(0.4),
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: scheme.primary.withOpacity(0.3)),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -566,9 +633,9 @@ class _ServiceChip extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: scheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: scheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -619,7 +686,7 @@ class _DetailTile extends StatelessWidget {
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -627,10 +694,7 @@ class _DetailTile extends StatelessWidget {
 }
 
 class _InfoChip extends StatelessWidget {
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-  });
+  const _InfoChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -642,9 +706,9 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withOpacity(0.4),
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: scheme.primary.withOpacity(0.3)),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -655,10 +719,9 @@ class _InfoChip extends StatelessWidget {
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelLarge
-                  ?.copyWith(color: scheme.onSurface),
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(color: scheme.onSurface),
             ),
           ),
         ],
@@ -680,7 +743,7 @@ class _AvailabilityChip extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         color: CanchaMeta.availabilityBackground(true),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -690,9 +753,9 @@ class _AvailabilityChip extends StatelessWidget {
           Text(
             CanchaMeta.availabilityLabel(true),
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

@@ -9,11 +9,32 @@ class ReviewSummary {
     required this.total,
   });
 
-  factory ReviewSummary.fromJson(Map<String, dynamic> json) {
+  factory ReviewSummary.fromJson(Map<String, dynamic> json, [int canchaId = 0]) {
+    double _parseDouble(dynamic value) {
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    int _parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    final reviews = json['reviews'];
+    final reviewsCount =
+        (reviews is List) ? reviews.length : _parseInt(json['reviews_count']);
+    final totalFromJson =
+        _parseInt(json['count'] ?? json['total'] ?? json['total_reviews']);
+
     return ReviewSummary(
-      canchaId: json['cancha_id'] ?? 0,
-      average: (json['average'] ?? json['average_rating'] ?? 0).toDouble(),
-      total: json['total'] ?? json['total_reviews'] ?? 0,
+      canchaId: _parseInt(json['cancha_id'] ?? canchaId),
+      average: _parseDouble(
+        json['average'] ?? json['promedio'] ?? json['average_rating'],
+      ),
+      total: totalFromJson > 0 ? totalFromJson : reviewsCount,
     );
   }
 

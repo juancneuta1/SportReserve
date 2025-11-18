@@ -40,26 +40,20 @@ class _CalificacionWidgetState extends State<CalificacionWidget> {
       _errorMessage = null;
     });
     try {
-      final results = await Future.wait([
-        _service.obtenerPromedio(widget.canchaId),
-        _service.listarCalificaciones(widget.canchaId),
-      ]);
+      final resumen = await _service.obtenerResumen(widget.canchaId);
 
       if (!mounted) return;
 
-      final promedioData = results[0] as Map<String, dynamic>;
-      final calificaciones = results[1] as List<Calificacion>;
-
       setState(() {
-        _promedio =
-            (promedioData['promedio'] as num?)?.toDouble() ?? 0.0;
-        _total = (promedioData['total'] as num?)?.toInt() ?? calificaciones.length;
-        _calificaciones = calificaciones;
+        _promedio = resumen.promedio;
+        _total = resumen.total;
+        _calificaciones = resumen.calificaciones;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'No se pudieron cargar las calificaciones. Intenta más tarde.';
+        _errorMessage =
+            'No se pudieron cargar las calificaciones. Intenta mas tarde.';
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -74,7 +68,9 @@ class _CalificacionWidgetState extends State<CalificacionWidget> {
   Future<void> _enviar() async {
     if (!_isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inicia sesión para calificar la cancha.')),
+        const SnackBar(
+          content: Text('Inicia sesion para calificar la cancha.'),
+        ),
       );
       return;
     }
@@ -103,7 +99,9 @@ class _CalificacionWidgetState extends State<CalificacionWidget> {
       FocusScope.of(context).unfocus();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Calificación enviada. ¡Gracias!')),
+        const SnackBar(
+          content: Text('Calificacion enviada. Gracias!'),
+        ),
       );
 
       await _loadData();
@@ -114,7 +112,7 @@ class _CalificacionWidgetState extends State<CalificacionWidget> {
         SnackBar(
           content: Text(
             friendly.isEmpty
-                ? 'No se pudo enviar la calificación. Intenta más tarde.'
+                ? 'No se pudo enviar la calificacion. Intenta mas tarde.'
                 : friendly,
           ),
         ),
@@ -133,135 +131,134 @@ class _CalificacionWidgetState extends State<CalificacionWidget> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: const EdgeInsets.only(top: 32),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: _loading
+          ? Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
                     Text(
                       _promedio.toStringAsFixed(1),
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Text('Promedio de $_total reseñas'),
-                    const SizedBox(height: 8),
-                    _buildAverageStars(_promedio),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Promedio de $_total resenas',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          _buildAverageStars(_promedio),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _loadData,
+                      icon: const Icon(Icons.refresh_rounded),
+                      tooltip: 'Recargar resenas',
+                    ),
                   ],
                 ),
-                IconButton(
-                  onPressed: _loading ? null : _loadData,
-                  icon: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh_rounded),
-                  tooltip: 'Actualizar',
-                ),
-              ],
-            ),
-            const Divider(height: 32),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Califica esta cancha',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildSelectableStars(),
-            const SizedBox(height: 12),
-            if (_isAuthenticated)
-              TextField(
-                controller: _comentarioController,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Comentario (opcional)',
-                  border: OutlineInputBorder(),
-                ),
-              )
-            else
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Inicia sesión para dejar un comentario.',
-                  style: TextStyle(color: scheme.onSurfaceVariant),
-                ),
-              ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _sending ? null : _enviar,
-                icon: _sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.star_rate_rounded),
-                label: Text(_sending ? 'Enviando...' : 'Enviar calificación'),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Experiencias recientes',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                const SizedBox(height: 16),
+                Text(
+                  'Califica esta cancha',
+                  style: textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
+                ),
+                const SizedBox(height: 8),
+                _buildSelectableStars(),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _comentarioController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Comentario (opcional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _sending ? null : _enviar,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _sending
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Enviar calificacion'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Experiencias recientes',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (_errorMessage != null)
+                  Text(
+                    _errorMessage!,
+                    style: textTheme.bodyMedium?.copyWith(color: Colors.red),
+                  )
+                else if (_calificaciones.isEmpty)
+                  Text(
+                    'Aun no hay calificaciones. Se el primero en opinar!',
+                    style: textTheme.bodyMedium,
+                  )
+                else
+                  Column(
+                    children: List.generate(
+                      _calificaciones.length,
+                      (index) => Padding(
+                        padding: EdgeInsets.only(
+                          bottom: index == _calificaciones.length - 1 ? 0 : 12,
+                        ),
+                        child: _CalificacionTile(
+                          calificacion: _calificaciones[index],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            if (_errorMessage != null)
-              Text(
-                _errorMessage!,
-                style: TextStyle(color: scheme.error),
-              )
-            else if (_calificaciones.isEmpty)
-              Text(
-                _loading
-                    ? 'Cargando calificaciones...'
-                    : 'Aún no hay calificaciones para esta cancha.',
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _calificaciones.length,
-                separatorBuilder: (_, __) => const Divider(height: 20),
-                itemBuilder: (context, index) {
-                  final calificacion = _calificaciones[index];
-                  return _CalificacionTile(calificacion: calificacion);
-                },
-              ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -277,7 +274,7 @@ class _CalificacionWidgetState extends State<CalificacionWidget> {
         } else {
           icon = Icons.star_border_rounded;
         }
-        return Icon(icon, color: Colors.amber, size: 24);
+        return Icon(icon, color: Colors.amber, size: 22);
       }),
     );
   }
@@ -320,7 +317,8 @@ class _CalificacionTile extends StatelessWidget {
               radius: 18,
               backgroundColor: scheme.primary.withValues(alpha: 0.15),
               child: Text(
-                (calificacion.usuarioNombre?.substring(0, 1) ?? '?').toUpperCase(),
+                (calificacion.usuarioNombre?.substring(0, 1) ?? '?')
+                    .toUpperCase(),
                 style: TextStyle(
                   color: scheme.primary,
                   fontWeight: FontWeight.bold,
@@ -333,7 +331,7 @@ class _CalificacionTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    calificacion.usuarioNombre ?? 'Usuario anónimo',
+                    calificacion.usuarioNombre ?? 'Usuario anonimo',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),

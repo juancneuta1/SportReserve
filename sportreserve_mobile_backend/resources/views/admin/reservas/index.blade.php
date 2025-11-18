@@ -50,7 +50,10 @@
                         <th class="text-uppercase small">#</th>
                         <th class="text-uppercase small">Usuario</th>
                         <th class="text-uppercase small">Cancha</th>
+                        <th class="text-uppercase small">Deporte</th>
+                        <th class="text-uppercase small">Tipo cancha</th>
                         <th class="text-uppercase small">Horario</th>
+                        <th class="text-uppercase small">Valor</th>
                         <th class="text-uppercase small text-center">Estado</th>
                         <th class="text-uppercase small text-end">Acciones</th>
                     </tr>
@@ -69,6 +72,15 @@
                             $fechaFormateada = $reserva->fecha ? \Carbon\Carbon::parse($reserva->fecha)->format('d/m/Y') : 'Sin fecha';
                             $horaInicio = $reserva->hora ?? '--:--';
                             $horaFin = $reserva->hora_fin ?? '--:--';
+                            $tiposCancha = $reserva->cancha && $reserva->cancha->tipo
+                                ? (is_array($reserva->cancha->tipo)
+                                    ? $reserva->cancha->tipo
+                                    : array_map('trim', explode(',', (string) $reserva->cancha->tipo)))
+                                : [];
+                            $tiposCancha = collect($tiposCancha)->filter()->implode(', ');
+                            $deporte = $reserva->deporte ?? 'N/D';
+                            $precioHora = $reserva->precio_por_cancha ?? 0;
+                            $total = ($reserva->precio_por_cancha ?? 0) * ($reserva->cantidad_horas ?? 1);
                         @endphp
                         <tr>
                             <td class="text-muted">#{{ $reserva->id }}</td>
@@ -81,12 +93,24 @@
                                 <small class="text-muted">{{ $reserva->cancha->ubicacion ?? '' }}</small>
                             </td>
                             <td>
+                                <div class="fw-semibold">{{ $deporte }}</div>
+                                <small class="text-muted">Seleccionado</small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">{{ $tiposCancha ?: 'N/D' }}</div>
+                                <small class="text-muted">Configurado</small>
+                            </td>
+                            <td>
                                 <div class="fw-semibold">
                                     {{ $fechaFormateada }}
                                 </div>
                                 <small class="text-muted">
                                     {{ $horaInicio }} - {{ $horaFin }} ({{ $reserva->cantidad_horas }} h)
                                 </small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">${{ number_format($total, 0, ',', '.') }}</div>
+                                <small class="text-muted">${{ number_format($precioHora, 0, ',', '.') }} / hora</small>
                             </td>
                             <td class="text-center">
                                 <span class="status-badge {{ $badgeClass }}">{{ $estadoLabel }}</span>

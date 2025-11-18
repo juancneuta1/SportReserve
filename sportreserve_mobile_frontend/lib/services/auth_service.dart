@@ -87,6 +87,14 @@ class AuthService extends ChangeNotifier {
     'Content-Type': 'application/json',
   };
 
+  String _sanitizeJson(String raw) {
+    return raw
+        .replaceAll('\uFEFF', '')
+        .replaceAll('\u200B', '')
+        .replaceAll(RegExp(r'[\u0000-\u0008\u000B\u000C\u000E-\u001F]'), '')
+        .trim();
+  }
+
   /// Headers autenticados con el token.
   Future<Map<String, String>> _authHeaders() async {
     await _ensureSessionLoaded();
@@ -126,7 +134,8 @@ class AuthService extends ChangeNotifier {
     debugPrint('📦 Respuesta: ${response.body}');
 
     if (response.statusCode == 201) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final sanitized = _sanitizeJson(response.body);
+      final data = jsonDecode(sanitized) as Map<String, dynamic>;
       return UserProfileLaravel.fromJson(
         (data['user'] ?? data) as Map<String, dynamic>,
       );
@@ -335,6 +344,79 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// 🔹 Solicita correo de recuperación de contraseña.
+  Future<String> sendPasswordResetEmail(String email) async {
+    final url = _uri('/password/forgot');
+    final response = await http.post(
+      url,
+      headers: _jsonHeaders(),
+      body: jsonEncode({'email': email}),
+    );
+
+    final sanitized = _sanitizeJson(response.body);
+    final data = sanitized.isNotEmpty
+        ? jsonDecode(sanitized) as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    if (response.statusCode == 200) {
+      return data['message']?.toString() ??
+          'Hemos enviado un enlace de recuperación si el correo existe.';
+    }
+
+    if (response.statusCode == 422) {
+      final msg =
+          data['message']?.toString() ?? 'No pudimos procesar tu solicitud.';
+      throw Exception(msg);
+    }
+
+    debugPrint('🔴 Forgot password error ${response.statusCode}: $sanitized');
+    throw Exception(
+      'No pudimos enviar el enlace en este momento. Intenta más tarde o contacta soporte.',
+    );
+  }
+
+  /// 🔹 Restablece la contraseña usando el token enviado por correo.
+  Future<String> resetPassword({
+    required String email,
+    required String token,
+    required String password,
+    required String confirmPassword,
+  }) async {
+    final url = _uri('/password/reset');
+    final response = await http.post(
+      url,
+      headers: _jsonHeaders(),
+      body: jsonEncode({
+        'email': email,
+        'token': token,
+        'password': password,
+        'password_confirmation': confirmPassword,
+      }),
+    );
+
+    final sanitized = _sanitizeJson(response.body);
+    final data = sanitized.isNotEmpty
+        ? jsonDecode(sanitized) as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    if (response.statusCode == 200) {
+      return data['message']?.toString() ??
+          'Contraseña restablecida correctamente.';
+    }
+
+    if (response.statusCode == 422) {
+      final msg =
+          data['message']?.toString() ??
+          'No pudimos restablecer la contraseña.';
+      throw Exception(msg);
+    }
+
+    throw Exception(
+      data['message']?.toString() ??
+          'Error inesperado al restablecer contraseña (${response.statusCode}).',
+    );
+  }
+
   /// 🔹 Sube una nueva foto de perfil y actualiza el perfil.
   Future<String> uploadProfilePhoto(String filePath) async {
     final url = _uri('/update-photo');
@@ -351,7 +433,8 @@ class AuthService extends ChangeNotifier {
     debugPrint('📦 Respuesta: ${response.body}');
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final sanitized = _sanitizeJson(response.body);
+      final data = jsonDecode(sanitized) as Map<String, dynamic>;
       final photoUrl = data['photo_url'] as String;
 
       if (_cachedProfile != null) {

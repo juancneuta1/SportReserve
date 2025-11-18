@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\MensajeController;
 use App\Http\Controllers\Admin\SecurityController;
 use App\Http\Controllers\Admin\TwoFactorController;
 use App\Http\Controllers\Admin\UsuarioAdminController;
+use App\Http\Controllers\AuthController;
 
 //
 // ======================================================================
@@ -59,6 +60,10 @@ Route::get('/admin/login', [AuthAdminController::class, 'showLoginForm'])
 Route::get('/login', function () {
     return redirect()->route('admin.login');
 })->name('login');
+
+// Reset de contraseña (público)
+Route::get('/reset-password', [AuthController::class, 'showResetForm'])->name('password.reset');
+Route::post('/reset-password', [AuthController::class, 'handleReset'])->name('password.update');
 
 // Acciones de autenticación
 Route::post('/admin/login', [AuthAdminController::class, 'login'])->name('admin.login.post');
