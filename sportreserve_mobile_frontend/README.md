@@ -9,7 +9,7 @@ App móvil para descubrir canchas deportivas, reservar, pagar por WebView (Merca
 - Chrome si corres `flutter run -d chrome`.
 - Backend Laravel accesible en red: la app apunta a `http://10.0.2.2:8000/api` (emulador Android). Para dispositivos reales cambia las URLs a la IP de tu backend.
 
-## Puesta en marcha (PC recién formateado)
+## Puesta en marcha
 1) `flutter doctor` y corrige lo que falte (SDKs, licencias).  
 2) Clona el repo y entra en la carpeta.  
 3) Instala dependencias: `flutter pub get`.  
